@@ -2,7 +2,7 @@
 
 ## Repo_HPGe
 
-Contiene funciones útiles para el análisis de espectros. Sirve para las calibraciones en eficiencia, cálculos de flujo y actividad por pico, descarga de datos del Livechart de la IAEA usando su API.
+Contiene funciones útiles para el análisis de espectros (.txt, usando _export_ del software GammaVision, de ORTEC). Sirve para las calibraciones en eficiencia, cálculos de flujo y actividad por pico, descarga de datos del Livechart de la IAEA usando su API.
 
 ## Analisis_HPGe
 
