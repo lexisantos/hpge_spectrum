@@ -41,7 +41,7 @@ def seccioneff_Maxw(s_0, T):
 
     """
     T += 273.15
-    T0 = 293.15 #round(0.0253/8.6173324e-5, 2)
+    T0 = round(0.0253/8.6173324e-5, 2)
     a = np.sqrt(np.pi*T0/(4*T))
     return s_0*a
 
@@ -188,6 +188,43 @@ def dif_rel(x1, x2):
     """
     return (2*(x1 - x2)/(x1 + x2))*100
 
+def G_abs(sigma, r, h, N, dim: bool=False):   
+    """
+    Corrección por self-shielding térmico (absorción) para geometría cilíndrica.
+
+    Parameters
+    ----------
+    sigma : float,
+        Sección eficaz microscópica (cm^2).
+    r : float,
+        Radio del cilindro.
+    h : float,
+        Altura del cilindro.
+    N : float,
+        Número de nucleídos.
+    dim : bool, optional
+        Si quiere que también devuelva el (D = True).
+
+    Returns
+    -------
+    G : float
+        Coeficiente de autoapantallamiento (val. típico < 1).
+    
+    S, V (if dim = True): float
+       Valor de superficie y volumen de la geometría descrita.     
+        
+    """
+    S = 2*np.pi*r*h + 2*np.pi*r**2
+    V = h*np.pi*r**2
+    x = (N/V)*sigma*2*V/S
+    Euler = 0.5772156649
+    G = 1 - (4/3)*x - (x**2)*(np.log(x/2) + Euler - 5/4)/2 - (x**4)*(np.log(x/2) + Euler - 7/4)/24
+    if dim:
+        return G, S, V
+    else:
+        return G
+
+
 ## Revisar que no esté cargando datos de la IAEA cada vez que quiero calcular una actividad
 
 def DDA(hl, real_time):
@@ -211,7 +248,7 @@ def DDA(hl, real_time):
     corr = f/(1-np.exp(-f))
     return corr
 
-def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, dt: float=0.,
+def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, var_mu=None, dt: float=0.,
               tolerancia: float=0.0025, isfromRA3: bool = False, Fuente=None, datadecay=None):
     """
     Cálculo de actividades.
@@ -226,8 +263,11 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, dt: float=0.,
         Error de la tasa de conteo.
     treal : float
         Tiempo real de adquisición.
-    poly_params : array, float
-        Valores de los coeficientes del polinomio de eficiencia.
+    poly_params : array (shape= Mx2), float
+        Valores de los M coeficientes del polinomio de eficiencia, ordenados en filas junto a sus errores.
+    var_mu : function or float (D = None)
+        Función para calcular la varianza relativa de la eficiencia (devuelto en ajuste_pol), o en su defecto, el valor del coeficiente de Pearson para un ajuste lineal.
+        En cualquier otro caso, el error relativo se considera 0.
     dt : float or datetime, optional (D = 0)
         Fecha (datetime) de medición de la fuente (isfromRA = True)
         Tiempo (s) hasta el punto de referencia temporal (isfromRA = False). 
@@ -260,9 +300,15 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, dt: float=0.,
         print('Ingrese el parámetro \'Fuente\', o en su defecto, los datos asociados con \'datadecay\'.')
     peaks = select_data(Energias, eiu, tolerancia)/100
     peaks[np.isnan(peaks)] = 0
-    effs = np.exp(np.polyval(poly_params, np.log(Energias)))
+    effs = np.exp(np.polyval(poly_params[:, 0], np.log(Energias)))
+    if callable(var_mu):
+        effs_err = np.sqrt(var_mu(np.log(Energias)))
+    elif isinstance(var_mu, float) and len(poly_params[:, 1])==2:
+        effs_err = np.sqrt(np.polyval(poly_params[:, 1]**2, np.log(Energias)**2) + 2*var_mu*np.multiply(*poly_params[:, 1])*np.log(Energias))
+    else:
+        effs_err = 0
     Act_calc = cps_peaks/(peaks[:, 0]*effs)
-    Err_calc = Act_calc*np.sqrt((err_cps/cps_peaks)**2 + (peaks[:, 1]/peaks[:, 0])**2)
+    Err_calc = Act_calc*np.sqrt((err_cps/cps_peaks)**2 + (peaks[:, 1]/peaks[:, 0])**2 + effs_err**2)
     Act_final = DDA(hl, treal)*np.array([Act_calc, Err_calc]).T
     if isfromRA3 == True:
         data_doc = tabla_RA3.loc[Fuente][['Act       [Bq]', 'σ Act']].values.astype(float)
@@ -424,7 +470,7 @@ class NAA_calib:
         #np.array([np.mean(hl), np.mean(self.datafromRA3.get('unc_hls'))])
         # self.dt_caldoc = dt_caldoc
             
-    def cal_eff(self, ROIs, spec_cal, grado_pol: int = 1, n_bkg: int = 3, criterio: float=0, tolerancia: float=0.0025):
+    def cal_eff(self, ROIs, spec_cal, spec_fondo, grado_pol: int = 1, n_bkg: int = 3, criterio: float=0, tolerancia: float=0.0025):
         """
         Cálculo de la eficiencia a partir de ROIs definidas previamente.
 
@@ -433,7 +479,9 @@ class NAA_calib:
         ROIs : matrix 
             De dimensión N x 2, con N el nro. de ROIs o picos. 
         spec_cal : class
-            Clase con el espectro ya leído.
+            Clase con el espectro ya leído (fromspec).
+        spec_fondo : class
+            Clase con el espectro del fondo ya leído (fromspec).
         grado_pol : int, optional
             Grado del polinomio considerado para la eficiencia (D = 1).
         n_bkg : int, optional
@@ -473,10 +521,10 @@ class NAA_calib:
         Epeak_spec = np.zeros(len(ROIs))
         cps_net_err = np.zeros(len(ROIs))
         for ii, roi in enumerate(ROIs):
-            roi = (roi + n_bkg*np.array([-1, 1])).astype(int)
-            data_ROI = {'Fuente': spec_cal.ROI(roi, n_bkg)}
-            cps_net[ii] = data_ROI['Fuente']['net']/spec_cal.tlive
-            cps_net_err[ii] = data_ROI['Fuente']['net_err']/spec_cal.tlive
+            # roi = (roi + n_bkg*np.array([-1, 1])).astype(int)
+            data_ROI = {'Fuente': spec_cal.ROI(roi, n_bkg), 'Fondo': spec_fondo.ROI(roi, n_bkg)}
+            cps_net[ii] = data_ROI['Fuente']['net']/spec_cal.tlive - data_ROI['Fondo']['net']/spec_fondo.tlive
+            cps_net_err[ii] = np.sqrt((data_ROI['Fuente']['net_err']/spec_cal.tlive)**2 + (data_ROI['Fondo']['net_err']/spec_fondo.tlive)**2 )
             Epeak_spec[ii] = data_ROI['Fuente']['en_max']
         i_sel = self.int_energy[:, 1]>criterio*100
         I_E_IAEA = np.array(self.int_energy[i_sel])
@@ -516,7 +564,7 @@ class Alambre:
         self.act_els = {x: x.replace(str(self.As[x]), str(self.As[x]+dn)) for x in self.comp}
         self.data_decay = {iso: loadfromIAEA(iso, 'decay') for iso in list(self.act_els.values())}
         self.hl = {iso: self.data_decay[iso].get(['half_life_sec']).to_numpy().mean() for iso in list(self.act_els.values())}
-    def N_padres(self, masa_total):
+    def N_padres(self, masa_total, masa_errrel):
         """
         Calcula la cantidad de núcleos padres para cierta masa, teniendo en cuenta la abundancia y la composición previamente definidas.
 
@@ -524,20 +572,23 @@ class Alambre:
         ----------
         masa_total : float
             Masa (g) del alambre.
-
+        masa_errrel : float
+            Error relativo (%) de masa total
+        
         Returns
         -------
-        N : dict, {str: float}
-            Cantidad de nucleos por nucleído estable que compone al alambre.
+        N : dict, {str: array}
+            Cantidad de nucleos por nucleído estable que compone al alambre, junto a su error.
             {nucleído padre: nro. de núcleos}
 
         """
         m_parcial = np.array([self.comp[el]*self.abundance[el] for el in self.comp])*masa_total
         Mr = np.array([self.stable_data[el].data.get('atomic_mass')[0]*1e-6 for el in self.comp])
-        N = {x:y for x,y in zip(self.comp, N_av*m_parcial/Mr)}
+        Nmean = N_av*m_parcial/Mr
+        N = {x:y for x,y in zip(self.comp, Nmean.reshape((len(Nmean), 1))*np.array([1, masa_errrel]))}
         return N
     def Act_alambre(self, iso, Epeak, Net_cps, Net_cps_err,
-                    gap_time, treal, eff_params):
+                    gap_time, treal, eff_params, var_mu):
         """
         Calcula la actividad para a partir de los datos definidos previamente, y de las cuentas por ROI.
 
@@ -560,9 +611,9 @@ class Alambre:
 
         Returns
         -------
-        Actp : TYPE
+        Actp : array (1, 2), float  
             Actividad parcial del nucleído 'iso'.
 
         """
-        Actp = Actividad(Epeak, Net_cps, Net_cps_err, treal, eff_params, gap_time, datadecay=self.data_decay[iso])
+        Actp = Actividad(Epeak, Net_cps, Net_cps_err, treal, eff_params, var_mu, gap_time, datadecay=self.data_decay[iso])
         return Actp
