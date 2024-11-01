@@ -112,11 +112,15 @@ plt.tight_layout()
 plt.legend()
 
 #%% Pico Incógnita o pico solo
-coef_eff = coef #Puede cambiarse por un array fijo, si es que ya se ejecutó el bloque anterior (o para reusar ctes de otra calibración)
-coef_eff_err = coef_err #ídem lo anterior
+coef = np.array([-1.168,  0.70]) #Puede cambiarse por un array fijo, si es que ya se ejecutó el bloque anterior (o para reusar ctes de otra calibración)
+#29jul24: np.array([-1.159,  0.64]), 19feb24: array([-1.17555463,  0.74364904])
+
+coef_err = np.array([0.016,	0.11]) 
+#29jul24: np.array([0.022,	0.14]), 19feb24: array([0.0195103 , 0.12846296])
+
+coef_tabla = np.vstack((coef, coef_err)).T #Coeficientes de eficiencia en una tabla.
 
 fecha_incog = datetime(2024, 7, 31) #Fecha de medición del patrón
-coef_en = np.array([1.769383E+001, 5.759117E-001, 3.971684E-007]) #Ctes de la calibración en energía
 
 n_back = 3 #Nro de puntos para el background en cada ROI
 
@@ -239,17 +243,30 @@ for alambre in nromed:
 
 #%% Cálculo de flujo por job
 
-masas ={'W21': 0.08041, 'W06': 0.07053, 'W05': 0.07116}#  {'W17': 0.06793, 'W39': 0.06782, 'W34': 0.06920}
+Gth = 0.969
+SSg = {'197Au': 1.035, '63Cu': 1.032}
+
+masas = {'W17': 0.06793, 'W39': 0.06782, 'W34': 0.06920}
+err_rel_m = 0.005
+ 
+# 19feb24: {'W17': 0.06793, 'W39': 0.06782, 'W34': 0.06920}
+# 29jul24: {'W21': 0.08041, 'W06': 0.07053, 'W05': 0.07116}
+
 Flujos_W = {}
 Npadres = {}
+G_s = {}
 
 for alambre in nromed:
     Flujos_W[alambre] = {}
-    Npadres[alambre] = Alambre_W.N_padres(masas[alambre])
+    G_s[alambre] = {}
+    Npadres[alambre] = Alambre_W.N_padres(masas[alambre], err_rel_m)
     for mat in Composition:
         iso = Alambre_W.act_els[mat]
         f_t = (1 - np.exp(-np.log(2)*tirr/Alambre_W.hl[iso]))
-        Flujos_W[alambre][mat] = Act_W[alambre][iso]/(act.seccioneff_Maxw(act.cross_sec[mat], 38)*Npadres[alambre][mat]*f_t)
+        sigma = act.seccioneff_Maxw(act.cross_sec[mat], 38)
+        A, Aerr = Act_W[alambre][iso].reshape(-1)
+        f_err = np.sqrt((Aerr/A)**2 + err_rel_m**2) #parte del cálculo con errores
+        Flujos_W[alambre][mat] = SSg[mat]*A/(Gth*sigma*Npadres[alambre][mat][0]*f_t)*np.array([1, f_err])
 
 #%% Figuras de evolución ficticia del flujo (debería ser ~constante, como la Act inicial)
 
