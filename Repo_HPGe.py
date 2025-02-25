@@ -9,6 +9,7 @@ import pandas as pd
 from datetime import datetime
 import re
 import urllib.request
+import io, requests
 from itertools import combinations
 from scipy.stats import chi2
 
@@ -22,6 +23,8 @@ tabla_RA3 = pd.read_excel('D:/Documentos RA-3/Copia de Listado de fuentes v13.xl
 Livechart = "https://nds.iaea.org/relnsd/v1/data?"
 
 cross_sec = {'63Cu': 4.5e-24, '197Au': 98.65e-24}
+
+path_API = 'D:\Codigos_py\Repositorio\data_API'
 
 def seccioneff_Maxw(s_0, T):
     """
@@ -148,10 +151,15 @@ def lc_pd_dataframe(url):
         Devuelve los datos leídos en formato DataFrame.
 
     """
-    req = urllib.request.Request(url)
-    req.add_header('User-Agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0')
-    return pd.read_csv(urllib.request.urlopen(req))
-
+    try:
+        urlData  = requests.get(url).content
+        rawData = pd.read_csv(io.StringIO(urlData.decode('utf-8')))
+        return rawData
+    except:
+        req = urllib.request.Request(url)
+        req.add_header('User-Agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0')
+        return pd.read_csv(urllib.request.urlopen(req))
+    
 def select_data(measured, data_table, tolerance, idx=0): 
     """
     Selecciona los valores de data_table según los valores en measured, bajo un grado de tolerancia.
@@ -173,12 +181,12 @@ def select_data(measured, data_table, tolerance, idx=0):
 
     """
     rows, cols = len(measured), len(data_table.T)
-    data_sel = np.zeros((rows, cols-1))
+    data_sel = np.zeros((rows, cols))
     for jj, en in enumerate(measured):
         for ee in data_table:
             x = en/ee[idx]
             if 1-tolerance<x<1+tolerance:
-                data_sel[jj] = np.delete(ee, idx)
+                data_sel[jj] = ee
     return data_sel
 
 def dif_rel(x1, x2):
@@ -298,17 +306,18 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, var_mu=None, dt:
         hl = data_iaea.get(['half_life_sec']).to_numpy().mean()
     else:
         print('Ingrese el parámetro \'Fuente\', o en su defecto, los datos asociados con \'datadecay\'.')
-    peaks = select_data(Energias, eiu, tolerancia)/100
+    peaks = select_data(Energias, eiu, tolerancia)
     peaks[np.isnan(peaks)] = 0
-    effs = np.exp(np.polyval(poly_params[:, 0], np.log(Energias)))
+    peaks[:, 1:] = peaks[:, 1:]/100
+    effs = np.exp(np.polyval(poly_params[:, 0], np.log(peaks[:, 0])))
     if callable(var_mu):
-        effs_err = np.sqrt(var_mu(np.log(Energias)))
+        effs_err = np.sqrt(var_mu(np.log(peaks[:, 0])))
     elif isinstance(var_mu, float) and len(poly_params[:, 1])==2:
-        effs_err = np.sqrt(np.polyval(poly_params[:, 1]**2, np.log(Energias)**2) + 2*var_mu*np.multiply(*poly_params[:, 1])*np.log(Energias))
+        effs_err = np.sqrt(np.polyval(poly_params[:, 1]**2, np.log(peaks[:, 0])**2) + 2*var_mu*np.multiply(*poly_params[:, 1])*np.log(peaks[:, 0]))
     else:
         effs_err = 0
-    Act_calc = cps_peaks/(peaks[:, 0]*effs)
-    Err_calc = Act_calc*np.sqrt((err_cps/cps_peaks)**2 + (peaks[:, 1]/peaks[:, 0])**2 + effs_err**2)
+    Act_calc = cps_peaks/(peaks[:, 1]*effs)
+    Err_calc = Act_calc*np.sqrt((np.log(2)/hl)**2 + (err_cps/cps_peaks)**2 + (peaks[:, 2]/peaks[:, 1])**2 + effs_err**2)
     Act_final = DDA(hl, treal)*np.array([Act_calc, Err_calc]).T
     if isfromRA3 == True:
         data_doc = tabla_RA3.loc[Fuente][['Act       [Bq]', 'σ Act']].values.astype(float)
@@ -394,7 +403,7 @@ class fromspec:
         return peak_info
  
 class loadfromIAEA:
-    def __init__(self, Fuente, state, radiation_type: str='g', only_stable: bool=True):
+    def __init__(self, Fuente, state, radiation_type: str='g', only_stable: bool=True, savedata = False):
         """
         A partir de un isótopo, ve sus datos en la tabla de la IAEA usando su API.
         
@@ -413,16 +422,22 @@ class loadfromIAEA:
 
 
         """
+        archive = f'{path_API}\{Fuente}_{state}_rad-{radiation_type}.csv'
         nuclei = re.split('-|_| ', Fuente)[0]
-        path = {'decay': f"fields=decay_rads&nuclides={nuclei}&rad_types={radiation_type}",
-                'estable': f"fields=ground_states&nuclides={nuclei}"}
-        df = lc_pd_dataframe(Livechart + path[state.lower()])
+        try:
+            df = pd.read_csv(archive)
+        except:
+            path = {'decay': f"fields=decay_rads&nuclides={nuclei}&rad_types={radiation_type}",
+                    'estable': f"fields=ground_states&nuclides={nuclei}"}
+            df = lc_pd_dataframe(Livechart + path[state.lower()])
+
         self.estado = state
         self.nucleo = nuclei
         if state.lower() == 'decay' and only_stable == True:
             self.data = df.query("p_energy==0") 
         else:
             self.data = df
+        
     def get(self, cols):
         """
         Devuelve columnas de interés a partir de una tabla.
@@ -608,6 +623,8 @@ class Alambre:
             Tiempo real final de adqusición.
         eff_params : array
             Coeficientes del polinomio de ajuste durante la calibración en eficiencia.
+        var_mu : function
+            Función de la varianza de la eficiencia en función de la energía.
 
         Returns
         -------
@@ -617,3 +634,54 @@ class Alambre:
         """
         Actp = Actividad(Epeak, Net_cps, Net_cps_err, treal, eff_params, var_mu, gap_time, datadecay=self.data_decay[iso])
         return Actp
+
+def tlive_estimation(tirr, sigma, Egamma, BR, m, Mr, Ab, hl, flujo, Sg: float = 1.03, Gth: float = 0.969, td: float = 900,
+                     Net_min: float = 1E4, coef_table = np.array([[-1.191,  0.02 ], [ 0.87 ,  0.13 ]])):
+    '''
+    
+
+    Parameters
+    ----------
+    tirr : float
+        Tiempo [s] de irradiación.
+    sigma : float
+        Sección eficaz (n, gamma) por absorción.
+    Egamma : float
+        Energía [keV] a la que salen los gammas.
+    BR : float
+        Branching ratio (entre 0 y 1).
+    m : float
+        Masa total del compuesto en el alambre.
+    Mr : float
+        Masa molar/atómica.
+    Ab : float
+        Abundancia (entre 0 y 1).
+    hl : float
+        Vida media del isótopo que se forma (N+1 del núcleo estáble).
+    flujo : float
+        Flujo [nv] promedio de la fuente de neutrones.
+    Sg : float, opcional
+        Pérdida de energía dentro del alambre. (D = 1.03).
+    Gth : float, opcional
+        Autoapantallamiento de neutrones. (D = 0.969).
+    td : float, opcional
+        Tiempo [s] de espera desde que dejó de irradiar. (D = 900).
+    Net_min : float, opcional
+        Mínimo de cuentas netas a medir. (D = 10000).
+    coef_table : ndarray, matrix, opcional
+        Tabla con coeficientes de eficiencia. [[a1,  a1 error], [a0, a0 error]]
+        (D = np.array([[-1.191,  0.02 ], [ 0.87 ,  0.13 ]]).
+
+    Returns
+    -------
+    t_live : float
+        Estimación de tiempo vivo [s].
+
+    '''    
+    Npadres = N_av*m*Ab/Mr
+    l = np.log(2)/hl
+    f_t = np.exp(-l*td)*(1 - np.exp(-l*tirr))
+    eff = np.exp(np.polyval(coef_table[:, 0], np.log(Egamma)))
+    # sigma = seccioneff_Maxw(sigma, 38)
+    t_live = Sg*Net_min/(Gth*flujo*BR*eff*f_t*sigma*Npadres)
+    return t_live
