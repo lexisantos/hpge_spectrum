@@ -487,7 +487,7 @@ class NAA_calib:
         #np.array([np.mean(hl), np.mean(self.datafromRA3.get('unc_hls'))])
         # self.dt_caldoc = dt_caldoc
             
-    def cal_eff(self, ROIs, spec_cal, spec_fondo, grado_pol: int = 1, n_bkg: int = 3, criterio: float=0, tolerancia: float=0.0025):
+    def cal_eff(self, ROIs, spec_cal, spec_fondo, grado_pol: int = 1, n_bkg: int = 3, criterio: float=0, tolerancia: float=0.0025, only_data: bool = False):
         """
         Cálculo de la eficiencia a partir de ROIs definidas previamente.
 
@@ -507,6 +507,8 @@ class NAA_calib:
             Valor de corte (cota inferior) para considerar intensidades (D = 0).
         tolerancia : float, optional
             Valor de tolerancia para comparar entre energías (tabla IAEA vs pico máx en ROIs). (D = 0.0025).
+        only_data : bool, optional
+            Si no se quere hacer el ajuste y sólo se quiere recuperar la eficiencia en función de energía.
 
         Returns
         -------
@@ -552,10 +554,14 @@ class NAA_calib:
                                   + (self.act_cal[1]/self.act_cal[0])**2)
         except:
             eff_err = None
-        coef, perr, chi2, res, pvalor, ddof, rhos, var_mu = ajuste_pol(grado_pol, np.log(data_sel[:, 0]*100), np.log(eff), y_err=eff_err/eff)
-        self.eff_params = {'an': coef, 'an_err': perr, 'chi-square': chi2, 'p-value': pvalor, 'ddof': ddof,
-                           'residuals': res, 'grado_pol': grado_pol, 'var_mu': var_mu}
-        return eff, eff_err, coef, perr, chi2, data_sel, res, pvalor, ddof, rhos, var_mu
+        if only_data:
+            return eff, eff_err
+        else:   
+            coef, perr, chi2, res, pvalor, ddof, rhos, var_mu = ajuste_pol(grado_pol, np.log(data_sel[:, 0]*100), np.log(eff), y_err=eff_err/eff)
+            self.eff_params = {'an': coef, 'an_err': perr, 'chi-square': chi2, 'p-value': pvalor, 'ddof': ddof,
+                               'residuals': res, 'grado_pol': grado_pol, 'var_mu': var_mu}
+            return eff, eff_err, coef, perr, chi2, data_sel, res, pvalor, ddof, rhos, var_mu
+
 
 class Alambre:
     def __init__(self, composition, irradiation_time, dn: int=1):
