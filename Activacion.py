@@ -12,12 +12,13 @@ import urllib.request
 import io, requests
 from itertools import combinations
 from scipy.stats import chi2
+import matplotlib.pyplot as plt
 
 day_year = 365.24219878
 s_day = 86400 
 N_av = 6.02214076E23
 
-tabla_RA3 = pd.read_excel('D:/Documentos RA-3/Copia de Listado de fuentes v13.xls',
+tabla_RA3 = pd.read_excel('/content/drive/MyDrive/Colab Notebooks/ProyectoLINTatPromptGamma/Copia de Listado de fuentes v13.xls',
                           sheet_name='Fuentes', index_col='Fuente') #str(input('Ingrese dirección de tabla RA3:\n'))
 
 Livechart = "https://nds.iaea.org/relnsd/v1/data?"
@@ -317,7 +318,10 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, var_mu=None, dt:
     else:
         effs_err = 0
     Act_calc = cps_peaks/(peaks[:, 1]*effs)
-    Err_calc = Act_calc*np.sqrt((np.log(2)/hl)**2 + (err_cps/cps_peaks)**2 + (peaks[:, 2]/peaks[:, 1])**2 + effs_err**2)
+    try:
+        Err_calc = Act_calc*np.sqrt((np.log(2)/hl)**2 + (err_cps/cps_peaks)**2 + (peaks[:, 2]/peaks[:, 1])**2 + effs_err**2)
+    except:
+        return (cps_peaks, peaks[:, 1])
     Act_final = DDA(hl, treal)*np.array([Act_calc, Err_calc]).T
     if isfromRA3 == True:
         data_doc = tabla_RA3.loc[Fuente][['Act       [Bq]', 'σ Act']].values.astype(float)
@@ -326,7 +330,7 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, var_mu=None, dt:
         dt = float((fecha_doc - dt).days)*s_day
         data_cal = data_doc*np.exp(np.log(2)*dt/hl)
         diff = dif_rel(Act_calc, data_cal[0])
-        return Act_final, data_cal, diff
+        return Act_final, data_cal, diff, peaks
     else:
         return Act_final*np.exp(np.log(2)*dt/hl)
 
@@ -340,6 +344,16 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, var_mu=None, dt:
 #         x = x[0].split(':')
 #         if len(x)>=2:
 #             print(x)
+
+
+def check_ROI(ROI):
+    if isinstance(ROI, list):
+        ROIs_cal = np.array(ROI).astype(int)
+    elif isinstance(ROI, str):
+        ROIs_cal = np.loadtxt(ROI)[:, 1:].astype(int)
+    else:
+        ROIs_cal = input('Formato no válido de ROI. Ingrese una lista o una dirección de archivo:\n')
+    return ROIs_cal
     
 class fromspec:
     def __init__(self, path, coef_en=[]):
@@ -400,7 +414,16 @@ class fromspec:
         peak_info["net_err"] = np.sqrt(peak_info["adj_gross"] + peak_info["background"]*((h - l + 1 - 2*n_bkg)**2/(2*n_bkg*(h - l + 1))))#/((2*n_bkg)*(h - l + 1)))
         peak_info["chn_max"] = self.channels[l + np.argmax(self.counts[l:h+1])]
         peak_info["en_max"] = np.polyval(self.coef_en, peak_info["chn_max"])
+        peak_info["tasa_neta"], peak_info["tasa_neta_err"] = np.array(peak_info["net"], peak_info["net_err"])/self.tlive
         return peak_info
+    
+    def graph(self, scale):
+        plt.figure()
+        plt.plot(self.channels, self.counts)
+        plt.grid(True, ls='--')
+        plt.xlabel('Channel')
+        plt.ylabel('Counts')
+        plt.yscale(scale)
  
 class loadfromIAEA:
     def __init__(self, Fuente, state, radiation_type: str='g', only_stable: bool=True, savedata = False):
@@ -460,7 +483,7 @@ class loadfromIAEA:
         return df
 
 class NAA_calib:
-    def __init__(self, Fuente, FechaCalib):
+    def __init__(self, FechaCalib, spec_cal_path, spec_fondo_path, Fuente: str = 'Eu152_76044A-440'):
         """
         Calibración en eficiencia del detector HPGe.
 
@@ -474,20 +497,19 @@ class NAA_calib:
         """
         self.fuente = Fuente
         self.datafromIAEA = loadfromIAEA(Fuente, 'decay', savedata=True).data
-        self.datafromRA3 = tabla_RA3.loc[Fuente]
         self.fecha_cal = FechaCalib
-        self.fecha_doc = self.datafromRA3['Fecha']
+        self.fecha_doc = tabla_RA3.loc[Fuente]['Fecha']
         self.dt_caldoc = float((self.fecha_doc - self.fecha_cal).days)*s_day
         intensity, unc_int, energy, hl = self.datafromIAEA.get(['intensity', 'unc_i', 'energy', 'half_life_sec']).to_numpy().T
         self.halflife_s = hl.mean()
-        self.act_doc = self.datafromRA3[['Act       [Bq]', 'σ Act']].values.astype(float)
+        self.act_doc = tabla_RA3.loc[Fuente][['Act       [Bq]', 'σ Act']].values.astype(float)
         self.act_doc[1] = self.act_doc[1]*self.act_doc[0]
         self.act_cal = self.act_doc*np.exp(np.log(2)*self.dt_caldoc/self.halflife_s)
         self.int_energy = np.transpose([energy, intensity, unc_int])
-        #np.array([np.mean(hl), np.mean(self.datafromRA3.get('unc_hls'))])
-        # self.dt_caldoc = dt_caldoc
-            
-    def cal_eff(self, ROIs, spec_cal, spec_fondo, grado_pol: int = 1, n_bkg: int = 3, criterio: float=0, tolerancia: float=0.0025, only_data: bool = False):
+        self.spec_cal_path = spec_cal_path
+        self.spec_fondo_path = spec_fondo_path
+        
+    def __efficiencycalc__(self, ROIs, grado_pol: int = 1, n_bkg: int = 3, criterio: float=0, tolerancia: float=0.0025, only_data = False):
         """
         Cálculo de la eficiencia a partir de ROIs definidas previamente.
 
@@ -507,8 +529,6 @@ class NAA_calib:
             Valor de corte (cota inferior) para considerar intensidades (D = 0).
         tolerancia : float, optional
             Valor de tolerancia para comparar entre energías (tabla IAEA vs pico máx en ROIs). (D = 0.0025).
-        only_data : bool, optional
-            Si no se quere hacer el ajuste y sólo se quiere recuperar la eficiencia en función de energía.
 
         Returns
         -------
@@ -536,14 +556,16 @@ class NAA_calib:
             Función que toma como input algún array y devuelve el intervalo de confianza.
 
         """
+        self.spec_cal = fromspec(self.spec_cal_path)
+        self.spec_fondo = fromspec(self.spec_fondo_path)
         cps_net = np.zeros(len(ROIs))
         Epeak_spec = np.zeros(len(ROIs))
         cps_net_err = np.zeros(len(ROIs))
         for ii, roi in enumerate(ROIs):
             # roi = (roi + n_bkg*np.array([-1, 1])).astype(int)
-            data_ROI = {'Fuente': spec_cal.ROI(roi, n_bkg), 'Fondo': spec_fondo.ROI(roi, n_bkg)}
-            cps_net[ii] = data_ROI['Fuente']['net']/spec_cal.tlive - data_ROI['Fondo']['net']/spec_fondo.tlive
-            cps_net_err[ii] = np.sqrt((data_ROI['Fuente']['net_err']/spec_cal.tlive)**2 + (data_ROI['Fondo']['net_err']/spec_fondo.tlive)**2 )
+            data_ROI = {'Fuente': self.spec_cal.ROI(roi, n_bkg), 'Fondo': self.spec_fondo.ROI(roi, n_bkg)}
+            cps_net[ii] = data_ROI['Fuente']['tasa_neta'] - data_ROI['Fondo']['tasa_neta']
+            cps_net_err[ii] = np.sqrt(data_ROI['Fuente']['tasa_neta_err']**2 + data_ROI['Fondo']['tasa_neta_err']**2 )
             Epeak_spec[ii] = data_ROI['Fuente']['en_max']
         i_sel = self.int_energy[:, 1]>criterio*100
         I_E_IAEA = np.array(self.int_energy[i_sel])
@@ -561,8 +583,47 @@ class NAA_calib:
             self.eff_params = {'an': coef, 'an_err': perr, 'chi-square': chi2, 'p-value': pvalor, 'ddof': ddof,
                                'residuals': res, 'grado_pol': grado_pol, 'var_mu': var_mu}
             return eff, eff_err, coef, perr, chi2, data_sel, res, pvalor, ddof, rhos, var_mu
-
-
+    
+    def eff(self, ROI):
+        ROIs_cal = check_ROI(ROI)
+        while isinstance(ROIs_cal, ('str', 'list')):
+            ROIs_cal = check_ROI(ROI)
+        self.eff_data, self.err_eff = self.__efficiencycalc__(ROIs_cal)
+        self.npicos = {self.fuente.split('_')[0]: len(self.err_eff)}
+    
+    def eff_adddata(self, path_new_spec, ROIs, npicos: dict = {'137Cs': 1, '60Co': 2}):
+        for f in npicos:
+            ROIs_cal = check_ROI(ROIs[f])
+            while isinstance(ROIs_cal, ('str', 'list')):
+                ROIs_cal = check_ROI(ROIs[f])
+            # Access the ROI method on self.fondo
+            spec_incog = fromspec(path_new_spec, coef_en = self.spec_cal.coef_en[::-1])
+            pico_incog = [spec_incog.ROI(ROIs)] if ROIs.shape == (2,) else [spec_incog.ROI(roi) for roi in ROIs]
+            E_incog = [pico_incog[ii]['en_max'] for ii in range(npicos[f])] #energía del pico
+            t_inicio = spec_incog.tinicio.replace(hour=0, minute=0, second=0, microsecond=0) #Fecha de espectro '00 hs'
+            data_fondo = [self.spec_fondo.ROI(ROIs)] if ROIs.shape == (2,) else [self.spec_fondo.ROI(roi) for roi in ROIs]
+            cps_fondo = [np.array([data_fondo["tasa_neta"], data_fondo["tasa_neta_err"]]) for back in self.data_fondo]
+            ###COMPLETAR
+            cps_pico = [np.array([pico_incog[ii]["tasa_neta"], pico_incog[ii]["tasa_neta_err"]]) - cps_fondo[ii] for ii in npicos[f]]
+            data_act = Actividad(np.array(E_incog), np.array([cps_pico[:, 0]]), np.array([cps_pico[:, 1]]),
+                                spec_incog.treal, self.eff_coef_tabla, isfromRA3=True, Fuente=globals()[f'fuente_{f[-2:]}'][self.det], dt = t_inicio,
+                                var_mu = self.eff_params['var_mu'])
+            df_act = pd.DataFrame(np.hstack((data_act[3], data_act[0].reshape((npicos[f], 2)), np.array(data_act[2]).reshape((npicos[f], 1)))),
+                                  columns = ['Energy [keV]', 'BR %', 'BR err %', 'Act [Bq]', 'Error Act [Bq]', 'Diff Tab %'])
+            df_act[['BR %', 'BR err %']] = df_act[['BR %', 'BR err %']]*100
+        
+            setattr(self, f'data_act_{f[-2:]}', df_act)
+            setattr(self, f'data_RA3_{f[-2:]}', data_act[1])
+        
+            eff_incog = cps_pico[:, 0]/(data_act[1][0]*data_act[3][0][1])
+            eff_incog_err = eff_incog*np.sqrt((data_act[3][:, 2]/data_act[3][:, 1])**2 +
+                              (cps_pico[:, 1]/cps_pico[:, 0])**2 +
+                              np.divide(*data_act[1][::-1])**2)
+        
+            self.eff_data = np.append(self.eff_data, eff_incog)
+            self.eff_err = np.append(self.eff_err, eff_incog_err)
+            self.eff_Epeak_Eu = np.append(self.eff_Epeak_Eu, E_incog)
+        
 class Alambre:
     def __init__(self, composition, irradiation_time, dn: int=1):
         """
