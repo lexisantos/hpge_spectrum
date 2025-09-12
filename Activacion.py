@@ -1,4 +1,4 @@
-#Recordar correr 'pip install xlrd', cambiar la direccion de 
+#Recordar correr 'pip install xlrd', cambiar la direccion de
 # pip install pandas
 # pip install plotly
 # pip install ipywidgets
@@ -15,7 +15,7 @@ from scipy.stats import chi2
 import matplotlib.pyplot as plt
 
 day_year = 365.24219878
-s_day = 86400 
+s_day = 86400
 N_av = 6.02214076E23
 
 tabla_RA3 = pd.read_excel('/content/drive/MyDrive/Colab Notebooks/ProyectoLINTatPromptGamma/Copia de Listado de fuentes v13.xls',
@@ -23,10 +23,7 @@ tabla_RA3 = pd.read_excel('/content/drive/MyDrive/Colab Notebooks/ProyectoLINTat
 
 Livechart = "https://nds.iaea.org/relnsd/v1/data?"
 
-cross_sec = {'63Cu': 4.5e-24, '197Au': 98.65e-24, '55Mn': 16.36e-24}
-
-Gth = 0.969
-SSg = {'197Au': 1.035, '63Cu': 1.032, '55Mn': 1}
+cross_sec = {'63Cu': 4.5e-24, '197Au': 98.65e-24, '55Mn': 13.36e-24}
 
 path_API = 'D:\\Codigos_py\\Repositorio\\data_API'
 
@@ -71,7 +68,7 @@ def redondeo(mean, err, cs, texto = False):
     -------
     tuple, float or str
         (mean, err) si text = False; (mean, ±, err) en caso contrario.
-        
+
     """
     digits = -np.floor(np.log10(err)).astype(int)+cs-1
     if err<1:
@@ -84,10 +81,10 @@ def redondeo(mean, err, cs, texto = False):
         return (mean_R, '±',err_R)
     else:
         return (float(mean_R), float(err_R))
-       
+
 def ajuste_pol(grado, xdata, ydata, y_err):
     """
-    Resuelve en forma exacta para un modelo polinómico, lineal en parámetros. 
+    Resuelve en forma exacta para un modelo polinómico, lineal en parámetros.
 
     Parameters
     ----------
@@ -103,7 +100,7 @@ def ajuste_pol(grado, xdata, ydata, y_err):
     Returns
     -------
     array, float
-        Estimadores de los coeficientes del polinomio. 
+        Estimadores de los coeficientes del polinomio.
     array, float
         Desviaciones estándar de los estimadores. Sale de la matriz de covarianza.
     J_min_observado : float
@@ -130,13 +127,13 @@ def ajuste_pol(grado, xdata, ydata, y_err):
     par_err = np.sqrt(np.diag(cova_mle))
     comb = f(par_err) #combinatoria de stds de par_err
     upper_tri = cova_mle[np.triu_indices_from(cova_mle, k=1)] #upper triangle from covariance matrix
-    rhos = upper_tri/comb #factores de correlación (01, 02, 03, ... 0max, 12, 13). Usa combinatoria de las stds y los elementos de la cov 
-    var_mu = lambda xfit: matrix_fromx(xfit)**2 @ np.diag(cova_mle) + 2*np.row_stack([f(x) for x in matrix_fromx(xfit)]) @ upper_tri #varianza del parámetro hallado 
-    
+    rhos = upper_tri/comb #factores de correlación (01, 02, 03, ... 0max, 12, 13). Usa combinatoria de las stds y los elementos de la cov
+    var_mu = lambda xfit: matrix_fromx(xfit)**2 @ np.diag(cova_mle) + 2*np.vstack([f(x) for x in matrix_fromx(xfit)]) @ upper_tri #varianza del parámetro hallado
+
     residuos = ydata - design_matrix @ par_est
     J_min_observado = residuos.T @ np.linalg.inv(cova_y) @ residuos #chi2
     ddof = len(xdata) - len(par_est)
-    pvalor = chi2.sf(J_min_observado, ddof) 
+    pvalor = chi2.sf(J_min_observado, ddof)
 
     return par_est[::-1], par_err[::-1], J_min_observado, residuos, pvalor, ddof, rhos, var_mu
 
@@ -163,8 +160,8 @@ def lc_pd_dataframe(url):
         req = urllib.request.Request(url)
         req.add_header('User-Agent', 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:77.0) Gecko/20100101 Firefox/77.0')
         return pd.read_csv(urllib.request.urlopen(req))
-    
-def select_data(measured, data_table, tolerance, idx=0): 
+
+def select_data(measured, data_table, tolerance, idx=0):
     """
     Selecciona los valores de data_table según los valores en measured, bajo un grado de tolerancia.
 
@@ -177,7 +174,7 @@ def select_data(measured, data_table, tolerance, idx=0):
     tolerance : float
         Menor que uno. Indica qué tan alejado del valor de referencia me permito estar.
     idx : optional, int
-        Posición en columna de referencia para data_table. 
+        Posición en columna de referencia para data_table.
     Returns
     -------
     array
@@ -200,7 +197,7 @@ def dif_rel(x1, x2):
     """
     return (2*(x1 - x2)/(x1 + x2))*100
 
-def G_abs(sigma, r, h, N, dim: bool=False):   
+def G_abs(sigma, r, h, N, dim: bool=False):
     """
     Corrección por self-shielding térmico (absorción) para geometría cilíndrica.
 
@@ -221,10 +218,10 @@ def G_abs(sigma, r, h, N, dim: bool=False):
     -------
     G : float
         Coeficiente de autoapantallamiento (val. típico < 1).
-    
+
     S, V (if dim = True): float
-       Valor de superficie y volumen de la geometría descrita.     
-        
+       Valor de superficie y volumen de la geometría descrita.
+
     """
     S = 2*np.pi*r*h + 2*np.pi*r**2
     V = h*np.pi*r**2
@@ -282,7 +279,7 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, var_mu=None, dt:
         En cualquier otro caso, el error relativo se considera 0.
     dt : float or datetime, optional (D = 0)
         Fecha (datetime) de medición de la fuente (isfromRA = True)
-        Tiempo (s) hasta el punto de referencia temporal (isfromRA = False). 
+        Tiempo (s) hasta el punto de referencia temporal (isfromRA = False).
     tolerancia : float, optional
         Tolerancia usada para seleccionar datos de la tabla de la IAEA. (D = 0.0025)
     isfromRA3 : bool, optional
@@ -296,10 +293,10 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, var_mu=None, dt:
     -------
     Para isfromRA3 = True : tuple(float, float, float)
         Actividad calculada, actividad deducida por tabla del RA3, diferencia media relativa entre ambas.
-    
+
     Para isfromRA3 = False : float
         Actividad final calculada.
-    
+
     """
     if Fuente == None and datadecay!=None:
         eiu = datadecay.get(['energy', 'intensity', 'unc_i']).to_numpy()
@@ -338,11 +335,11 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, var_mu=None, dt:
         return Act_final*np.exp(np.log(2)*dt/hl)
 
 # def df_discriminator(df, text):
-#     mask = np.row_stack([df[col].str.contains(r"SPECTRUM", na=False) for col in df])
+#     mask = np.vstack([df[col].str.contains(r"SPECTRUM", na=False) for col in df])
 #     icut = np.where(mask==[True])[1][0]
 #     fcut = len(df) - icut
-#     df_up = pd.DataFrame([x[0].split(':') for x in df[df.index<icut].values]) 
-#     df_up 
+#     df_up = pd.DataFrame([x[0].split(':') for x in df[df.index<icut].values])
+#     df_up
 #     for x in df[df.index<icut].values:
 #         x = x[0].split(':')
 #         if len(x)>=2:
@@ -350,18 +347,31 @@ def Actividad(Energias, cps_peaks, err_cps, treal, poly_params, var_mu=None, dt:
 
 
 def check_ROI(ROI):
-    if isinstance(ROI, list):
-        ROIs_cal = np.array(ROI).astype(int)
-    elif isinstance(ROI, str):
-        ROIs_cal = np.loadtxt(ROI)[:, 1:].astype(int)
+    if not isinstance(ROI, np.ndarray):
+      if isinstance(ROI, list):
+        ROIs_cal = np.array(ROI)
+      elif isinstance(ROI, str):
+          ROIs_cal = np.loadtxt(ROI)
+      else:
+          ROIs_cal = input('Formato no válido de ROI. Ingrese una lista o una dirección de archivo:\n')
     else:
-        ROIs_cal = input('Formato no válido de ROI. Ingrese una lista o una dirección de archivo:\n')
+      ROIs_cal = ROI
     return ROIs_cal
-    
+
+def add_effparams_to_obj(obj, eff_data, list_result, fuente): 
+	coef, perr, chi2, res, pvalor, ddof, rhos, var_mu = list_result
+	obj.eff_params[fuente] = {'an': coef, 'an_err': perr, 'chi-square': chi2, 'p-value': pvalor, 'ddof': ddof, 
+                           'residuals': res, 'var_mu': var_mu, 'rhos': rhos}
+	obj.eff_coef_tabla = np.vstack((coef, perr)).T
+	ss_res = np.sum(res**2)
+	ss_tot = np.sum((np.log(eff_data)-np.mean(np.log(eff_data)))**2)
+	R2 = 1 - (ss_res / ss_tot)
+	obj.eff_goodness = pd.DataFrame(np.array([chi2, pvalor, ddof, R2]), index = ['chi^2', 'p-value', 'ddof', 'R^2'], columns = ['goodness of fit'])
+
 class fromspec:
     def __init__(self, path, coef_en=[]):
         """
-        Lectura de espectro. La clase va a tener asociada las cuentas, canales, tiempo real, tiempo vivo, y coeficientes de calibración E/canales. 
+        Lectura de espectro. La clase va a tener asociada las cuentas, canales, tiempo real, tiempo vivo, y coeficientes de calibración E/canales.
 
         Parameters
         ----------
@@ -372,10 +382,10 @@ class fromspec:
 
         """
         df = pd.read_csv(path, encoding='latin-1')
-        mask = np.row_stack([df[col].str.contains(r"SPECTRUM", na=False) for col in df])
+        mask = np.vstack([df[col].str.contains(r"SPECTRUM", na=False) for col in df])
         icut = np.where(mask==[True])[1][0]
         fcut = len(df) - icut
-        
+
         df_data = pd.read_csv(path, names=['col', 'value'], index_col='col', skipfooter=fcut, encoding='latin-1', engine = 'python', delimiter=':  |\n')
         df_spec = pd.DataFrame([x[0].split() for x in df[df.index>icut].values]).set_index(0)
         self.tlive = float(df_data.loc['Live Time'].iloc[0])
@@ -386,7 +396,7 @@ class fromspec:
             self.tinicio = datetime.strptime(df_data.loc['Acquisition start date'].iloc[0]+'_'+df_data.loc['Acquisition start time'].iloc[0], '%d%b%Y_%H:%M:%S')
         self.nchannels = int(df_data.loc['Number of channels'].iloc[0])
         self.channels = np.arange(self.nchannels)
-        self.counts = df_spec.to_numpy(dtype=float).reshape(-1)[:self.nchannels] 
+        self.counts = df_spec.to_numpy(dtype=float).reshape(-1)[:self.nchannels]
         if len(coef_en)==0:
             self.coef_en =  np.array(df_data.loc['Energy Fit'].iloc[0].split('  '), dtype=float)[::-1]
         else:
@@ -419,7 +429,7 @@ class fromspec:
         peak_info["en_max"] = np.polyval(self.coef_en, peak_info["chn_max"])
         peak_info["tasa_neta"], peak_info["tasa_neta_err"] = np.array([peak_info["net"], peak_info["net_err"]])/self.tlive
         return peak_info
-    
+
     def graph(self, scale: str = 'log'):
         plt.figure()
         plt.plot(self.channels, self.counts)
@@ -427,12 +437,12 @@ class fromspec:
         plt.xlabel('Channel')
         plt.ylabel('Counts')
         plt.yscale(scale)
- 
+
 class loadfromIAEA:
     def __init__(self, Fuente, state, radiation_type: str='g', only_stable: bool=True, savedata = False):
         """
         A partir de un isótopo, ve sus datos en la tabla de la IAEA usando su API.
-        
+
         Reference: https://iaea-nds.github.io/lc_api_notebook/
 
         Parameters
@@ -459,13 +469,13 @@ class loadfromIAEA:
         self.estado = state
         self.nucleo = nuclei
         if state.lower() == 'decay' and only_stable == True:
-            self.data = df.query("p_energy==0") 
+            self.data = df.query("p_energy==0")
         else:
             self.data = df
-        
+
         if savedata:
             df.to_csv(archive)
-        
+
     def get(self, cols):
         """
         Devuelve columnas de interés a partir de una tabla.
@@ -512,223 +522,232 @@ class HPGE_calib:
         self.act_doc[1] = self.act_doc[1]*self.act_doc[0]
         self.act_cal = self.act_doc*np.exp(np.log(2)*self.dt_caldoc/self.halflife_s)
         self.int_energy = np.transpose([energy, intensity, unc_int])
+        self.eff_params = dict()
 
-        
+
     def __efficiencycalc__(self, ROIs, grado_pol: int = 1, n_bkg: int = 3, criterio: float=0, tolerancia: float=0.0025, fit: bool= True):
-        """
-        Cálculo de la eficiencia a partir de ROIs definidas previamente.
+      """
+      Cálculo de la eficiencia a partir de ROIs definidas previamente.
 
-        Parameters
-        ----------
-        ROIs : matrix 
-            De dimensión N x 2, con N el nro. de ROIs o picos. 
-        spec_cal : class
-            Clase con el espectro ya leído (fromspec).
-        spec_fondo : class
-            Clase con el espectro del fondo ya leído (fromspec).
-        grado_pol : int, optional
-            Grado del polinomio considerado para la eficiencia (D = 1).
-        n_bkg : int, optional
-            Número de puntos de fondo por ROI (D = 3).
-        criterio : float, optional
-            Valor de corte (cota inferior) para considerar intensidades (D = 0).
-        tolerancia : float, optional
-            Valor de tolerancia para comparar entre energías (tabla IAEA vs pico máx en ROIs). (D = 0.0025).
-        fit : bool, optional
-            Si se quere hacer el ajuste, o si sólo se quiere recuperar la eficiencia en función de la energía.
+      Parameters
+      ----------
+      ROIs : matrix
+          De dimensión N x 2, con N el nro. de ROIs o picos.
+      spec_cal : class
+          Clase con el espectro ya leído (fromspec).
+      spec_fondo : class
+          Clase con el espectro del fondo ya leído (fromspec).
+      grado_pol : int, optional
+          Grado del polinomio considerado para la eficiencia (D = 1).
+      n_bkg : int, optional
+          Número de puntos de fondo por ROI (D = 3).
+      criterio : float, optional
+          Valor de corte (cota inferior) para considerar intensidades (D = 0).
+      tolerancia : float, optional
+          Valor de tolerancia para comparar entre energías (tabla IAEA vs pico máx en ROIs). (D = 0.0025).
+      fit : bool, optional
+          Si se quere hacer el ajuste, o si sólo se quiere recuperar la eficiencia en función de la energía.
 
 
-        Returns
-        -------
-        eff : array, float
-            Valores calculados de eficiencia en función de la energía.
-        eff_err : array, float
-            Errores de 'eff'. Calculados por propagación de errores.
+      Returns
+      -------
+      eff : array, float
+          Valores calculados de eficiencia en función de la energía.
+      eff_err : array, float
+          Errores de 'eff'. Calculados por propagación de errores.
 
-        """
+      """
 
-        cps_net = np.zeros(len(ROIs))
-        Epeak_spec = np.zeros(len(ROIs))
-        cps_net_err = np.zeros(len(ROIs))
-        for ii, roi in enumerate(ROIs):
-            # roi = (roi + n_bkg*np.array([-1, 1])).astype(int)
-            data_ROI = {'Fuente': self.spec_cal.ROI(roi, n_bkg), 'Fondo': self.spec_fondo.ROI(roi, n_bkg)}
-            cps_net[ii] = data_ROI['Fuente']['tasa_neta'] - data_ROI['Fondo']['tasa_neta']
-            cps_net_err[ii] = np.sqrt(data_ROI['Fuente']['tasa_neta_err']**2 + data_ROI['Fondo']['tasa_neta_err']**2 )
-            Epeak_spec[ii] = data_ROI['Fuente']['en_max']
-        i_sel = self.int_energy[:, 1]>criterio*100
-        I_E_IAEA = np.array(self.int_energy[i_sel])
-        data_sel = select_data(Epeak_spec, I_E_IAEA, tolerancia)/100  
-        eff = cps_net/(self.act_cal[0]*data_sel[:, 1])
-        try:
-            eff_err = eff*np.sqrt((cps_net_err/cps_net)**2 + (data_sel[:, 2]/data_sel[:, 1])**2 
-                                  + (self.act_cal[1]/self.act_cal[0])**2)
-        except:
-            eff_err = None
-        if fit:
-            coef, perr, chi2, res, pvalor, ddof, rhos, var_mu = ajuste_pol(grado_pol, np.log(data_sel[:, 0]*100), np.log(eff), y_err=eff_err/eff)
-            self.eff_params = {'an': coef, 'an_err': perr, 'chi-square': chi2, 'p-value': pvalor, 'ddof': ddof,
-                               'residuals': res, 'grado_pol': grado_pol, 'var_mu': var_mu, 'rhos': rhos}
-        return eff, eff_err
-    
+      cps_net = np.zeros(len(ROIs))
+      Epeak_spec = np.zeros(len(ROIs))
+      cps_net_err = np.zeros(len(ROIs))
+      for ii, roi in enumerate(ROIs):
+          # roi = (roi + n_bkg*np.array([-1, 1])).astype(int)
+          data_ROI = {'Fuente': self.spec_cal.ROI(roi, n_bkg), 'Fondo': self.spec_fondo.ROI(roi, n_bkg)}
+          cps_net[ii] = data_ROI['Fuente']['tasa_neta'] - data_ROI['Fondo']['tasa_neta']
+          cps_net_err[ii] = np.sqrt(data_ROI['Fuente']['tasa_neta_err']**2 + data_ROI['Fondo']['tasa_neta_err']**2 )
+          Epeak_spec[ii] = data_ROI['Fuente']['en_max']
+      i_sel = self.int_energy[:, 1]>criterio*100
+      I_E_IAEA = np.array(self.int_energy[i_sel])
+      data_sel = select_data(Epeak_spec, I_E_IAEA, tolerancia)/100
+      eff = cps_net/(self.act_cal[0]*data_sel[:, 1])
+      try:
+          eff_err = eff*np.sqrt((cps_net_err/cps_net)**2 + (data_sel[:, 2]/data_sel[:, 1])**2
+                                + (self.act_cal[1]/self.act_cal[0])**2)
+      except:
+          eff_err = None
+      if fit:
+        list_eff_res = ajuste_pol(grado_pol, np.log(data_sel[:, 0]*100), np.log(eff), y_err=eff_err/eff)
+        add_effparams_to_obj(self, eff_data = eff, list_result = list_eff_res, fuente = self.fuente)
+      return eff, eff_err
+
+    def __graph_eff__(self, Energies, fuente_sel, grado: int = 1):
+      eff_params = self.eff_params[fuente_sel]
+      E_arr = np.linspace(Energies.min(), Energies.max(), num=1000)
+      logE_arr  = np.log(E_arr)
+      eff_eval = np.polyval(eff_params['an'], logE_arr)
+      sigma_mu_est = np.sqrt(eff_params['var_mu'](logE_arr))
+      i0 = 0
+      plt.figure(figsize = (5,5))
+      for dd in self.npicos:
+          i1 = self.npicos[dd] + i0
+          plt.errorbar(np.log(Energies[i0:i1]), np.log(self.eff_data)[i0:i1], yerr= self.err_eff[i0:i1]/self.eff_data[i0:i1], fmt='.', label = f'{dd}')
+          i0 = i1
+      plt.plot(logE_arr, eff_eval, 'tab:gray', linewidth = 2.0, label = 'Model Fit')
+      plt.fill_between(logE_arr, eff_eval-sigma_mu_est, eff_eval+sigma_mu_est, color='tab:gray', alpha=0.2)
+      plt.grid(True, ls = '--')
+      plt.ylabel('$ln$ Eff')
+      plt.xlabel('$ln$ E')
+      plt.legend()
+      plt.title('Eficiencia para ' + f'{self.det}'+ ' 3sep ' + 'Fit grado= {}'.format(grado))# + f'{Fecha_cal.date()}')
+      plt.tight_layout()
+
     def eff(self, ROI, ajustar: bool = True, grado: int = 1, graph: bool = True):
-        ROIs_cal = check_ROI(ROI)
-        while isinstance(ROIs_cal, (str, list)):
-            ROIs_cal = check_ROI(ROI)
-        self.eff_data, self.err_eff = self.__efficiencycalc__(ROIs_cal, fit=ajustar)
-        self.npicos = {self.fuente.split('_')[0]: len(self.err_eff)}
-        if ajustar and graph:
-            self.eff_coef_tabla = np.vstack((self.eff_params['an'], self.eff_params['an_err'])).T
-            ss_res = np.sum(self.eff_params['residuals']**2)
-            ss_tot = np.sum((np.log(self.eff_data)-np.mean(np.log(self.eff_data)))**2)
-            R2 = 1 - (ss_res / ss_tot)
-            self.eff_goodness = pd.DataFrame(np.array([self.eff_params['chi-square'], self.eff_params['p-value'], self.eff_params['ddof'], R2]), index = ['chi^2', 'p-value', 'ddof', 'R^2'], columns = ['goodness of fit'])
-            E_arr = np.linspace(ROIs_cal[:, 0].min(), ROIs_cal[:, 0].max(), num=1000)    
-            logE_arr  = np.log(E_arr)
-            eff_eval = np.polyval(self.eff_params['an'], logE_arr)
-            sigma_mu_est = np.sqrt(self.eff_params['var_mu'](logE_arr))
-            i0 = 0
-            plt.figure(figsize = (5,5))
-            for dd in self.npicos:
-                i1 = self.npicos[dd] + i0
-                plt.errorbar(np.log(ROIs_cal[:, 0][i0:i1]), np.log(self.eff_data)[i0:i1], yerr= self.err_eff[i0:i1]/self.eff_data[i0:i1], fmt='.', label = f'{dd}')
-                i0 = i1
-            plt.plot(logE_arr, eff_eval, 'tab:gray', linewidth = 2.0, label = 'Model Fit')
-            plt.fill_between(logE_arr, eff_eval-sigma_mu_est, eff_eval+sigma_mu_est, color='tab:gray', alpha=0.2)
-            plt.grid(True, ls = '--')
-            plt.ylabel('$ln$ Eff')
-            plt.xlabel('$ln$ E')
-            plt.legend()
-            plt.title('Eficiencia para ' + f'{self.det}'+ ' 3sep ' + 'Fit grado= {}'.format(grado))# + f'{Fecha_cal.date()}')
-            plt.tight_layout()
+      self.grado_ajuste_eff = grado
+      ROIs_cal = check_ROI(ROI)
+      while isinstance(ROIs_cal, (str, list)):
+          ROIs_cal = check_ROI(ROI)
+      self.eff_Epeak_Eu = ROIs_cal[:, 0]
+      if ajustar:
+        self.eff_data, self.err_eff = self.__efficiencycalc__(ROIs_cal[:, 1:].astype(int), fit=ajustar)
+        self.npicos = {self.fuente.split('_')[0]: len(self.err_eff)} 
+      if graph:
+        self.__graph_eff__(ROIs_cal[:, 0], grado = self.grado_ajuste_eff, fuente_sel = self.fuente)
+
+    def eff_adddata(self, path_new_spec, ROIs, npicos, fuente, ajuste: bool = True, graph: bool = True):
+      ROIs_cal = check_ROI(ROIs).astype(int)
+      while isinstance(ROIs_cal, (str, list)):
+          ROIs_cal = check_ROI(ROIs).astype(int)
+      # Access the ROI method on self.fondo
+      spec_incog = fromspec(path_new_spec, coef_en = self.spec_cal.coef_en[::-1])
+      pico_incog = [spec_incog.ROI(ROIs_cal)] if ROIs_cal.shape == (2,) else [spec_incog.ROI(roi) for roi in ROIs_cal]
+      E_incog = np.array([pico_incog[ii]['en_max'] for ii in range(npicos)]) #energía del pico
+      t_inicio = spec_incog.tinicio.replace(hour=0, minute=0, second=0, microsecond=0) #Fecha de espectro '00 hs'
+      data_fondo = [self.spec_fondo.ROI(ROIs_cal)] if ROIs_cal.shape == (2,) else [self.spec_fondo.ROI(roi) for roi in ROIs_cal]
+      cps_fondo = [np.array([back["tasa_neta"], back["tasa_neta_err"]]) for back in data_fondo]
+      cps_pico = np.array([np.array([pico_incog[ii]["tasa_neta"], pico_incog[ii]["tasa_neta_err"]]) - cps_fondo[ii] for ii in range(npicos)])
+      data_act = Actividad(E_incog, cps_pico[:, 0], cps_pico[:, 1], spec_incog.treal, self.eff_coef_tabla,
+                            isfromRA3=True, Fuente=fuente, dt = t_inicio, var_mu = self.eff_params[self.fuente]['var_mu'])
+      df_act = pd.DataFrame(np.hstack((data_act[3], data_act[0].reshape((npicos, 2)), np.array(data_act[2]).reshape((npicos, 1)))),
+                            columns = ['Energy [keV]', 'BR %', 'BR err %', 'Act [Bq]', 'Error Act [Bq]', 'Diff Tab %'])
+      df_act[['BR %', 'BR err %']] = df_act[['BR %', 'BR err %']]*100
+
+      setattr(self, f'data_act_{fuente[2:]}', df_act)
+      setattr(self, f'data_RA3_{fuente[2:]}', data_act[1])
+
+      eff_incog = cps_pico[:, 0]/(data_act[1][0]*data_act[3][0][1])
+      eff_incog_err = eff_incog*np.sqrt((data_act[3][:, 2]/data_act[3][:, 1])**2 +
+                        (cps_pico[:, 1]/cps_pico[:, 0])**2 +
+                        np.divide(*data_act[1][::-1])**2)
+
+      self.eff_data = np.append(self.eff_data, eff_incog)
+      self.err_eff = np.append(self.err_eff, eff_incog_err)
+      self.eff_Epeak_Eu = np.append(self.eff_Epeak_Eu, E_incog)
+      self.npicos[fuente.split('_')[0]] = len(eff_incog_err) 
+
+      if ajuste:
+        list_eff_res = ajuste_pol(self.grado_ajuste_eff, np.log(self.eff_Epeak_Eu), np.log(self.eff_data), y_err=self.err_eff/self.eff_data)
+        add_effparams_to_obj(self, eff_data = self.eff_data, list_result = list_eff_res, fuente = fuente)
+      if graph:
+        self.__graph_eff__(self.eff_Epeak_Eu, grado = self.grado_ajuste_eff, fuente_sel = fuente)
 
 
-    def eff_adddata(self, path_new_spec, ROIs, npicos: dict = {'137Cs': 1, '60Co': 2}):
-        for f in npicos:
-            ROIs_cal = check_ROI(ROIs[f])
-            while isinstance(ROIs_cal, (str, list)):
-                ROIs_cal = check_ROI(ROIs[f])
-            # Access the ROI method on self.fondo
-            spec_incog = fromspec(path_new_spec, coef_en = self.spec_cal.coef_en[::-1])
-            pico_incog = [spec_incog.ROI(ROIs)] if ROIs.shape == (2,) else [spec_incog.ROI(roi) for roi in ROIs]
-            E_incog = [pico_incog[ii]['en_max'] for ii in range(npicos[f])] #energía del pico
-            t_inicio = spec_incog.tinicio.replace(hour=0, minute=0, second=0, microsecond=0) #Fecha de espectro '00 hs'
-            data_fondo = [self.spec_fondo.ROI(ROIs)] if ROIs.shape == (2,) else [self.spec_fondo.ROI(roi) for roi in ROIs]
-            cps_fondo = [np.array([data_fondo["tasa_neta"], data_fondo["tasa_neta_err"]]) for back in self.data_fondo]
-            ###COMPLETAR
-            cps_pico = [np.array([pico_incog[ii]["tasa_neta"], pico_incog[ii]["tasa_neta_err"]]) - cps_fondo[ii] for ii in npicos[f]]
-            data_act = Actividad(np.array(E_incog), np.array([cps_pico[:, 0]]), np.array([cps_pico[:, 1]]),
-                                spec_incog.treal, self.eff_coef_tabla, isfromRA3=True, Fuente=globals()[f'fuente_{f[-2:]}'][self.det], dt = t_inicio,
-                                var_mu = self.eff_params['var_mu'])
-            df_act = pd.DataFrame(np.hstack((data_act[3], data_act[0].reshape((npicos[f], 2)), np.array(data_act[2]).reshape((npicos[f], 1)))),
-                                  columns = ['Energy [keV]', 'BR %', 'BR err %', 'Act [Bq]', 'Error Act [Bq]', 'Diff Tab %'])
-            df_act[['BR %', 'BR err %']] = df_act[['BR %', 'BR err %']]*100
-        
-            setattr(self, f'data_act_{f[-2:]}', df_act)
-            setattr(self, f'data_RA3_{f[-2:]}', data_act[1])
-        
-            eff_incog = cps_pico[:, 0]/(data_act[1][0]*data_act[3][0][1])
-            eff_incog_err = eff_incog*np.sqrt((data_act[3][:, 2]/data_act[3][:, 1])**2 +
-                              (cps_pico[:, 1]/cps_pico[:, 0])**2 +
-                              np.divide(*data_act[1][::-1])**2)
-        
-            self.eff_data = np.append(self.eff_data, eff_incog)
-            self.eff_err = np.append(self.eff_err, eff_incog_err)
-            self.eff_Epeak_Eu = np.append(self.eff_Epeak_Eu, E_incog)
-        
 class Alambre:
     def __init__(self, data_det, composition, irradiation_time, spec_path, t_inicio, dn: int=1):
-        '''
-        Para crear un objeto de la clase Alambre necesito: 
-        
-         Parameters
-         ----------
-         data_det : obj
-             Objeto de la clase HPGE_calib. Se espera que ya se haya hecho la calibración del detector de Germanio utilizado.
-         composition : dict, float
-             Tiene como keys los componentes estables del alambre (por ej., '56Mn' o '63Cu'), y como valor el %m/m (del 0 al 1) 
-         irradiation_time : int
-             En segundos. El tiempo total de irradiación.
-         spec_path : str
-             Ruta de archivo del espectro del alambre.
-         t_inicio : datatime
-             Timestamp o vector de tiempos donde señala el inicio de la irradiación.
-         dn : int, optional
-             Cantidad de neutrones absorbidos. Cambio de A en la reacción. (D = 1).
-         '''
-        #Datos de composición, nucleidos, tiempo de vida medio y abundancia:
-        self.comp = composition
-        self.A_stables = {x: int(re.findall(r'\d+', x)[0]) for x in self.comp}
-        self.A_activated = {x: x.replace(str(self.A_stables[x]), str(self.A_stables[x]+dn)) for x in self.comp}
+      '''
+      Para crear un objeto de la clase Alambre necesito:
 
-        #tablas de datos: isótopo y núcleo estable
-        self.stable_data = {x: loadfromIAEA(x, 'estable') for x in self.comp}
-        self.data_decay = {iso: loadfromIAEA(iso, 'decay') for iso in list(self.act_els.values())}
-        
-        #Extraigo datos específicos de las tablas: abundancia y tiempo de vida medio
-        self.abundance = {x: self.stable_data[x].data['abundance'][0]/100 for x in self.comp}
-        self.hl = {iso: self.data_decay[iso].get(['half_life_sec']).to_numpy().mean() for iso in list(self.act_els.values())}
-        
-        #Datos del detector de germanio, ruta del espectro del alambre, tiempo de inicio de irradiación, y tiempo de irradiación total
-        self.data_det = data_det
-        self.spec_path = spec_path
-        self.t_inicio = t_inicio
-        self.ti = irradiation_time
-    
-    def pico(self, ROI, graph_ROI: bool = False):
-        '''
-        Extrae datos (tasa, energía) de un pico/roi dado, distinguiendo por isótopo formado.
-        
         Parameters
         ----------
-        ROI : dict, list
-            Distingue según isótopo. A cada uno se le asigna las listas con valores de la ROI. Por ejemplo:
-            {'64Cu': [290, 300], '198Au': [250, 262]}
-        graph_ROI : bool, optional
-            Si quiere que haya un gráfico que destaque el pico. Por defecto es False.
-
-        Returns
-        -------
-        DataFrame
-            Tabla con los .
-
+        data_det : obj
+            Objeto de la clase HPGE_calib. Se espera que ya se haya hecho la calibración del detector de Germanio utilizado.
+        composition : dict, float
+            Tiene como keys los componentes estables del alambre (por ej., '56Mn' o '63Cu'), y como valor el %m/m (del 0 al 1)
+        irradiation_time : int
+            En segundos. El tiempo total de irradiación.
+        spec_path : str
+            Ruta de archivo del espectro del alambre.
+        t_inicio : datatime
+            Timestamp o vector de tiempos donde señala el inicio de la irradiación.
+        dn : int, optional
+            Cantidad de neutrones absorbidos. Cambio de A en la reacción. (D = 1).
         '''
-        net_cps = {}
-        err_cps = {}
-        energy = {}
-        data = fromspec(self.spec_path, coef_en = self.data_det.spec_cal.coef_en[::-1])
-        self.spec_alambre = data
-        #tiempo de irradiación + tiempo de detección/medición 
-        self.dt = (data.tinicio - self.t_inicio).total_seconds() 
-        self.rois = ROI
-        for mat, roi in ROI.items():
-            cps_fondo, cps_fondo_err = np.array([self.data_det.spec_fondo.ROI(roi)[["tasa_neta", "tasa_neta_err"]]])
-            data_roi = data.ROI(roi)
-            net, err, energy[mat] = np.array(data_roi[["tasa_neta", "tasa_neta_err", "en_max"]])
-            net_cps[mat] = net - cps_fondo
-            err_cps[mat] = np.sqrt(err**2 + cps_fondo_err**2)
-        self.tasa_pico = pd.DataFrame.from_dict(net_cps, orient='index', columns = ['tasa'])
-        self.tasa_pico_err = pd.DataFrame.from_dict(err_cps, orient='index', columns = ['tasa_err'])
-        self.Emax_picos = pd.DataFrame.from_dict(energy, orient='index', columns = ['Emax'])
-        return pd.concat([self.tasa_pico, self.tasa_pico_err], axis=1)
+      #Datos de composición, nucleidos, tiempo de vida medio y abundancia:
+      self.comp = composition
+      self.A_stables = {x: int(re.findall(r'\d+', x)[0]) for x in self.comp}
+      self.A_activated = {x: x.replace(str(self.A_stables[x]), str(self.A_stables[x]+dn)) for x in self.comp}
 
-            
-        idx = np.array(list(ROI.values()))
-        if graph_ROI:
-          self.idx_picos = {}
-          plt.figure()
-          plt.plot(data.channels[idx.min()-100:idx.max()+100], data.counts[idx.min()-100:idx.max()+100])
-          for ii, iso in zip(idx, roi.keys()):
-            idx_cond = np.logical_and(data.channels> ii[0], data.channels<ii[1])
-            self.idx_picos[iso] = idx_cond
-            plt.plot(data.channels[idx_cond], data.counts[idx_cond], label = f'ROI_{iso}')
-          plt.grid(True, ls='--')
-          plt.xlabel('Channel')
-          plt.ylabel('Counts')
-          plt.legend()
-    
-    def calcular_act(self):
+      #tablas de datos: isótopo y núcleo estable
+      self.stable_data = {x: loadfromIAEA(x, 'estable') for x in self.comp}
+      self.data_decay = {iso: loadfromIAEA(iso, 'decay') for iso in list(self.A_activated.values())}
+
+      #Extraigo datos específicos de las tablas: abundancia y tiempo de vida medio
+      self.abundance = {x: self.stable_data[x].data['abundance'][0]/100 for x in self.comp}
+      self.hl = {iso: self.data_decay[iso].get(['half_life_sec']).to_numpy().mean() for iso in list(self.A_activated.values())}
+
+      #Datos del detector de germanio, ruta del espectro del alambre, tiempo de inicio de irradiación, y tiempo de irradiación total
+      self.data_det = data_det
+      self.spec_path = spec_path
+      self.t_inicio = t_inicio
+      self.ti = irradiation_time  
+
+    def pico(self, ROI, graph_ROI: bool = False):
+      '''
+      Extrae datos (tasa, energía) de un pico/roi dado, distinguiendo por isótopo formado.
+
+      Parameters
+      ----------
+      ROI : dict, list
+          Distingue según isótopo. A cada uno se le asigna las listas con valores de la ROI. Por ejemplo:
+          {'64Cu': [290, 300], '198Au': [250, 262]}
+      graph_ROI : bool, optional
+          Si quiere que haya un gráfico que destaque el pico. Por defecto es False.
+
+      Returns
+      -------
+      DataFrame
+          Tabla con los .
+
+      '''
+      net_cps = {}
+      err_cps = {}
+      energy = {}
+      data = fromspec(self.spec_path, coef_en = self.data_det.spec_cal.coef_en[::-1])
+      self.spec_alambre = data
+      #tiempo de irradiación + tiempo de detección/medición
+      self.dt = (data.tinicio - self.t_inicio).total_seconds()
+      self.rois = ROI
+      for mat, roi in ROI.items():
+          cps_fondo, cps_fondo_err = np.array(list(map(self.data_det.spec_fondo.ROI(roi).get, ['tasa_neta', 'tasa_neta_err'])))
+          data_roi = data.ROI(roi)
+          net, err, energy[mat] = np.array(list(map(data_roi.get, ["tasa_neta", "tasa_neta_err", "en_max"])))
+          net_cps[mat] = net - cps_fondo
+          err_cps[mat] = np.sqrt(err**2 + cps_fondo_err**2)
+      self.tasa_pico = pd.DataFrame.from_dict(net_cps, orient='index', columns = ['tasa'])
+      self.tasa_pico_err = pd.DataFrame.from_dict(err_cps, orient='index', columns = ['tasa_err'])
+      self.Emax_picos = pd.DataFrame.from_dict(energy, orient='index', columns = ['Emax'])
+
+      idx = np.array(list(ROI.values()))
+      if graph_ROI:
+        self.idx_picos = {}
+        plt.figure()
+        plt.plot(data.channels[idx.min()-100:idx.max()+100], data.counts[idx.min()-100:idx.max()+100])
+        for ii, iso in zip(idx, ROI.keys()):
+          idx_cond = np.logical_and(data.channels> ii[0], data.channels<ii[1])
+          self.idx_picos[iso] = idx_cond
+          plt.plot(data.channels[idx_cond], data.counts[idx_cond], label = f'ROI_{iso}')
+        plt.grid(True, ls='--')
+        plt.xlabel('Channel')
+        plt.ylabel('Counts')
+        plt.legend()
+      return pd.concat([self.tasa_pico, self.tasa_pico_err], axis=1)
+
+    def calcular_act(self, sel_eff = None):
       Act_iso = pd.DataFrame(columns = ['Fuente', 'Energía [keV]', 'Act [Bq]', 'dAct [Bq]'])
+      if sel_eff:
+        eff_params = self.data_det.eff_params[sel_eff]
+      else: 
+        eff_params = list(self.data_det.eff_params.values())[-1]
       #Act_iso.set_index('Energy', inplace= True)
       for iso in self.rois.keys():
         if isinstance(self.tasa_pico.loc[iso, 'tasa'], float):
@@ -737,99 +756,103 @@ class Alambre:
         else:
           net, err = [self.tasa_pico.loc[iso, 'tasa'], self.tasa_pico_err.loc[iso, 'tasa_err']]
           e = self.Emax_picos.loc[iso, 'Emax']
-        A = Actividad(e, net, err, dt = self.dt, treal = self.data_pico.treal,
-                      poly_params = self.data_det.eff_coef_tabla, var_mu = self.data_det.eff_rhos[0][0],
+        A = Actividad(e, net, err, dt = self.dt, treal = self.spec_alambre.treal,
+                      poly_params = self.data_det.eff_coef_tabla, var_mu = eff_params['rhos'][0][0],
                       Fuente = iso) #en var_mu ingresamos el valor del coef de Pearson
         for ii, ee, aa in zip(list(range(len(e))), e, A):
           Act_iso.loc[ii] = np.hstack((iso, ee, aa))
       self.tabla_Act = Act_iso
-      return Act_iso    
-    
+      return Act_iso
+
     def __Npadres__(self, masa_total, masa_errrel):
-        """
-        Calcula la cantidad de núcleos padres para cierta masa, teniendo en cuenta la abundancia y la composición previamente definidas.
+      """
+      Calcula la cantidad de núcleos padres para cierta masa, teniendo en cuenta la abundancia y la composición previamente definidas.
 
-        Parameters
-        ----------
-        masa_total : float
-            Masa (g) del alambre.
-        masa_errrel : float
-            Error relativo (%) de masa total
-        
-        Returns
-        -------
-        N : dict, {str: array}
-            Cantidad de nucleos por nucleído estable que compone al alambre, junto a su error.
-            {nucleído padre: nro. de núcleos}
+      Parameters
+      ----------
+      masa_total : float
+          Masa (g) del alambre.
+      masa_errrel : float
+          Error relativo (%) de masa total
 
-        """
-        m_parcial = np.array([self.comp[el]*self.abundance[el] for el in self.comp])*masa_total
-        Mr = np.array([self.stable_data[el].data.get('atomic_mass')[0]*1e-6 for el in self.comp])
-        Nmean = N_av*m_parcial/Mr
-        N = {x:y for x,y in zip(self.comp, Nmean.reshape((len(Nmean), 1))*np.array([1, masa_errrel]))}
-        return N
-    
-    def calc_flujo(self, masa, masa_err_rel, tirr_err: float = 1.0):
-        Flujos = pd.DataFrame(columns = ['Fuente', 'Flujo [nv]', 'dFlujo [nv]'])
-        N0 = self.__Npadres__(masa, masa_err_rel)
-        for ii, mat in enumerate(self.comp.keys()):
-            iso = self.A_activated[mat]
-            l = np.log(2)/self.data_pico.tlive
-            f_t = (1 - np.exp(-l*self.alambre.ti))
-            f_t_err = l*tirr_err*np.exp(-l*self.ti)
-            sigma = seccioneff_Maxw(cross_sec[mat], 38)
-            A, Aerr = self.tabla_Act[['Act [Bq]', 'dAct [Bq]']].to_numpy(dtype = float).mean(axis = 0)
-            #Aerr = (1/np.sqrt(len(self.tabla_Act[['Act [Bq]', 'dAct [Bq]']])))*np.sqrt((self.tabla_Act['dAct [Bq]'].to_numpy(dtype = float)**2).mean() + np.var(self.tabla_Act['dAct [Bq]'].to_numpy(dtype = float), ddof=1))
-            f_err = np.sqrt((Aerr/A)**2 + masa_err_rel**2 + (f_t_err/f_t)**2) #parte del cálculo con errores
-            Flujos.loc[ii] = np.hstack((iso, SSg[mat]*A/(Gth*sigma*N0[mat]*f_t)*np.array([1, f_err])))
-            #print(' --- Nuclei:', mat, '---', '\n SSg:', SSg[mat], '\n A:', [A, Aerr], '\n Gth:', Gth, '\n sigma:', sigma,
-            #      '\n Npadres:', N0[mat], '\n f(ti, td):', f_t, '\n error:', np.array([1, f_err]), '\n')
-        return Flujos
-    
+      Returns
+      -------
+      N : dict, {str: array}
+          Cantidad de nucleos por nucleído estable que compone al alambre, junto a su error.
+          {nucleído padre: nro. de núcleos}
+
+      """
+      m_parcial = np.array([self.comp[el]*self.abundance[el] for el in self.comp])*masa_total
+      Mr = np.array([self.stable_data[el].data.get('atomic_mass')[0]*1e-6 for el in self.comp])
+      Nmean = N_av*m_parcial/Mr
+      N = {x:y for x,y in zip(self.comp, Nmean.reshape((len(Nmean), 1))*np.array([1, masa_errrel]))}
+      return N
+
+    #Gth = 
+    def calc_flujo(self, masa, masa_err_rel, tirr_err: float = 1.0, 
+                   Gth: float = 0.969, SSg = {'197Au': 1.035, '63Cu': 1.032, '55Mn': 1}):
+      Flujos = pd.DataFrame(columns = ['Fuente', 'Flujo [nv]', 'dFlujo [nv]'])
+      N0 = self.__Npadres__(masa, masa_err_rel)
+      for ii, mat in enumerate(self.comp.keys()):
+        iso = self.A_activated[mat]
+        l = np.log(2)/self.hl[iso]
+        f_t = (1 - np.exp(-l*self.ti))
+        f_t_err = l*tirr_err*abs(1 - f_t)
+        sigma = seccioneff_Maxw(cross_sec[mat], 38)
+        if iso in list(self.rois.keys()):
+          A, Aerr = self.tabla_Act[self.tabla_Act['Fuente'] == iso][['Act [Bq]', 'dAct [Bq]']].to_numpy(dtype = float).mean(axis = 0)
+          f_err = np.sqrt((Aerr/A)**2 + masa_err_rel**2 + (f_t_err/f_t)**2) #parte del cálculo con errores
+          Flujos.loc[ii] = np.hstack((iso, (SSg[mat]*A/(Gth*sigma*N0[mat][0]*f_t))*np.array([1, f_err])))
+        else:
+          continue 
+          #print(' --- Nuclei:', mat, '---', '\n SSg:', SSg[mat], '\n A:', [A, Aerr], '\n Gth:', Gth, '\n sigma:', sigma,
+          #      '\n Npadres:', N0[mat], '\n f(ti, td):', f_t, '\n error:', np.array([1, f_err]), '\n')
+      return Flujos
+
 def tlive_estimation(tirr, sigma, Egamma, BR, Npadres, hl, flujo, Sg: float = 1.03, Gth: float = 0.969, td: float = 900,
                      Net_min: float = 1E4, coef_table = np.array([[-1.187, 0.02], [ 1.29, 0.13]])):
-    '''
-    
+  '''
 
 
 
-    Parameters
-    ----------
-    tirr : float
-        Tiempo [s] de irradiación.
-    sigma : float
-        Sección eficaz (n, gamma) por absorción.
-    Egamma : float
-        Energía [keV] a la que salen los gammas.
-    BR : float
-        Branching ratio (entre 0 y 1).
-    Npadres : float
-        Núcleos padres del compuesto.    
-    hl : float
-        Vida media del isótopo que se forma (N+1 del núcleo estáble).
-    flujo : float
-        Flujo [nv] promedio de la fuente de neutrones.
-    Sg : float, opcional
-        Pérdida de energía dentro del alambre. (D = 1.03).
-    Gth : float, opcional
-        Autoapantallamiento de neutrones. (D = 0.969).
-    td : float, opcional
-        Tiempo [s] de espera desde que dejó de irradiar. (D = 900).
-    Net_min : float, opcional
-        Mínimo de cuentas netas a medir. (D = 10000).
-    coef_table : ndarray, matrix, opcional
-        Tabla con coeficientes de eficiencia. [[a1,  a1 error], [a0, a0 error]]
-        (D = np.array([[-1.191,  0.02 ], [ 0.87 ,  0.13 ]]).
 
-    Returns
-    -------
-    t_live : float
-        Estimación de tiempo vivo [s].
+  Parameters
+  ----------
+  tirr : float
+      Tiempo [s] de irradiación.
+  sigma : float
+      Sección eficaz (n, gamma) por absorción.
+  Egamma : float
+      Energía [keV] a la que salen los gammas.
+  BR : float
+      Branching ratio (entre 0 y 1).
+  Npadres : float
+      Núcleos padres del compuesto.
+  hl : float
+      Vida media del isótopo que se forma (N+1 del núcleo estáble).
+  flujo : float
+      Flujo [nv] promedio de la fuente de neutrones.
+  Sg : float, opcional
+      Pérdida de energía dentro del alambre. (D = 1.03).
+  Gth : float, opcional
+      Autoapantallamiento de neutrones. (D = 0.969).
+  td : float, opcional
+      Tiempo [s] de espera desde que dejó de irradiar. (D = 900).
+  Net_min : float, opcional
+      Mínimo de cuentas netas a medir. (D = 10000).
+  coef_table : ndarray, matrix, opcional
+      Tabla con coeficientes de eficiencia. [[a1,  a1 error], [a0, a0 error]]
+      (D = np.array([[-1.191,  0.02 ], [ 0.87 ,  0.13 ]]).
 
-    '''    
-    l = np.log(2)/hl
-    f_t = np.exp(-l*td)*(1 - np.exp(-l*tirr))
-    eff = np.exp(np.polyval(coef_table[:, 0], np.log(Egamma)))
-    # sigma = seccioneff_Maxw(sigma, 38)
-    t_live = Sg*Net_min/(Gth*flujo*BR*eff*f_t*sigma*Npadres)
-    return t_live
+  Returns
+  -------
+  t_live : float
+      Estimación de tiempo vivo [s].
+
+  '''
+  l = np.log(2)/hl
+  f_t = np.exp(-l*td)*(1 - np.exp(-l*tirr))
+  eff = np.exp(np.polyval(coef_table[:, 0], np.log(Egamma)))
+  # sigma = seccioneff_Maxw(sigma, 38)
+  t_live = Sg*Net_min/(Gth*flujo*BR*eff*f_t*sigma*Npadres)
+  return t_live
