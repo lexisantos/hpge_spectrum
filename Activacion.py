@@ -18,14 +18,14 @@ day_year = 365.24219878
 s_day = 86400
 N_av = 6.02214076E23
 
-tabla_RA3 = pd.read_excel('/content/drive/MyDrive/Colab Notebooks/ProyectoLINTatPromptGamma/Copia de Listado de fuentes v13.xls',
+tabla_RA3 = pd.read_excel('/Copia de Listado de fuentes v13.xls',
                           sheet_name='Fuentes', index_col='Fuente') #str(input('Ingrese dirección de tabla RA3:\n'))
 
 Livechart = "https://nds.iaea.org/relnsd/v1/data?"
 
 cross_sec = {'63Cu': 4.5e-24, '197Au': 98.65e-24, '55Mn': 13.36e-24}
 
-path_API = 'D:\\Codigos_py\\Repositorio\\data_API'
+path_API = ''
 
 def seccioneff_Maxw(s_0, T):
     """
@@ -401,6 +401,7 @@ class fromspec:
             self.coef_en =  np.array(df_data.loc['Energy Fit'].iloc[0].split('  '), dtype=float)[::-1]
         else:
             self.coef_en = coef_en[::-1]
+		self.energies = np.polyval(self.coef_en, self.channels)
     def ROI(self, interval, n_bkg: int=3):
         """
         Cálculo de valores importantes dentro de una ROI.
@@ -856,3 +857,4 @@ def tlive_estimation(tirr, sigma, Egamma, BR, Npadres, hl, flujo, Sg: float = 1.
   # sigma = seccioneff_Maxw(sigma, 38)
   t_live = Sg*Net_min/(Gth*flujo*BR*eff*f_t*sigma*Npadres)
   return t_live
+
